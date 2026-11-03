@@ -1,0 +1,21 @@
+#!/usr/bin/bash
+# Kernel arguments for the GZ302EA. These live on the machine, not in the image, and survive image
+# updates. Usage (as root): z13-kargs [--brightness-fix]
+#   usbcore.autosuspend=-1       USB autosuspend off (usbcore is built in, so modprobe.d can't set it)
+#   rtc_cmos.use_acpi_alarm=1    RTC wake works (needed for suspend-then-hibernate)
+#   --brightness-fix             amdgpu.dcdebugmask=0x40000: the panel goes black near 100% brightness
+#                                because of amdgpu's custom brightness curve. Only add it if you see that.
+set -euo pipefail
+[[ $EUID -eq 0 ]] || { echo "Run as root (ujust asks for your password)"; exit 1; }
+args=(--append-if-missing=usbcore.autosuspend=-1 --append-if-missing=rtc_cmos.use_acpi_alarm=1)
+current=$(rpm-ostree kargs)
+if [[ ${1:-} == --brightness-fix ]]; then
+  if [[ $current =~ amdgpu\.dcdebugmask=([^ ]+) && ${BASH_REMATCH[1]} != 0x40000 ]]; then
+    echo "amdgpu.dcdebugmask is already set to ${BASH_REMATCH[1]}; leaving it. Combine by hand:"
+    echo "  sudo rpm-ostree kargs --replace=amdgpu.dcdebugmask=<old OR 0x40000>"
+  else
+    args+=(--append-if-missing=amdgpu.dcdebugmask=0x40000)
+  fi
+fi
+rpm-ostree kargs "${args[@]}"
+echo "Reboot to apply. Check afterwards with: cat /proc/cmdline"

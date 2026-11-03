@@ -1,0 +1,11 @@
+#!/usr/bin/bash
+# Optional: run the scx_lavd scheduler (what CachyOS used). Usage (as root): z13-scx on|off
+set -euo pipefail
+[[ $EUID -eq 0 ]] || { echo "Run as root"; exit 1; }
+case ${1:-} in
+  on)  mkdir -p /etc/scx_loader
+       printf 'default_sched = "scx_lavd"\ndefault_mode = "Auto"\n' > /etc/scx_loader/config.toml
+       systemctl enable --now scx_loader.service; echo "scx_lavd on." ;;
+  off) systemctl disable --now scx_loader.service; echo "scx off (stock scheduler)." ;;
+  *)   echo "usage: z13-scx on|off"; exit 1 ;;
+esac

@@ -1,0 +1,69 @@
+#!/usr/bin/bash
+# Hibernation on Bazzite for the GZ302EA. Usage (as root, via ujust): z13-hibernate-setup [SIZE]
+# SIZE defaults to 48G (Linux sees ~47 GB of RAM with 16 GB reserved as VRAM).
+#  1. Swapfile in its own btrfs subvolume /var/swap (skipped by snapshots), SELinux-labelled, in fstab
+#     (Bazzite's swapfile guide: https://docs.bazzite.gg/Advanced/swapfile/).
+#  2. resume= / resume_offset= kernel arguments.
+#  3. Power button and cover close -> suspend-then-hibernate (sleep, then hibernate after 1 h).
+# The image already has the other two fixes: HibernateMode=shutdown and the z13-mt7925e sleep hook.
+# zram stays on: systemd never hibernates to zram, and this swapfile has lower priority, as on CachyOS.
+# Test before relying on it: ujust z13-hibernate-test, then `systemctl hibernate`.
+# Undo: remove the /var/swap line from /etc/fstab, `swapoff -a`, delete /var/swap,
+#       rm /etc/systemd/logind.conf.d/z13-hibernate.conf, and rpm-ostree kargs --delete the two resume args.
+set -euo pipefail
+[[ $EUID -eq 0 ]] || { echo "Run as root (ujust asks for your password)"; exit 1; }
+SIZE=${1:-48G}
+SWAP=/var/swap/swapfile
+
+if [[ ! -e $SWAP ]]; then
+  echo "==> Creating $SIZE swapfile at $SWAP"
+  [[ -d /var/swap ]] || btrfs subvolume create /var/swap
+  semanage fcontext -a -t var_t /var/swap 2>/dev/null || true
+  restorecon /var/swap
+  btrfs filesystem mkswapfile --size "$SIZE" "$SWAP"
+  semanage fcontext -a -t swapfile_t "$SWAP" 2>/dev/null || true
+  restorecon "$SWAP"
+else
+  echo "==> $SWAP already exists, keeping it"
+fi
+
+if ! grep -q "^$SWAP " /etc/fstab; then
+  cp -a /etc/fstab /etc/fstab.pre-z13-hibernate
+  echo "$SWAP none swap defaults,nofail,pri=-2 0 0" >> /etc/fstab
+fi
+swapon --show=NAME | grep -qx "$SWAP" || swapon -p -2 "$SWAP"
+
+echo "==> Kernel arguments"
+uuid=$(findmnt -no UUID -T "$SWAP")
+offset=$(btrfs inspect-internal map-swapfile -r "$SWAP")
+del=()
+for k in $(rpm-ostree kargs); do
+  [[ $k == resume=* || $k == resume_offset=* ]] && del+=("--delete=$k")
+done
+rpm-ostree kargs "${del[@]}" --append="resume=UUID=$uuid" --append="resume_offset=$offset"
+
+echo "==> Power button / cover close -> suspend-then-hibernate"
+mkdir -p /etc/systemd/logind.conf.d
+cat > /etc/systemd/logind.conf.d/z13-hibernate.conf <<'CONF'
+# Written by z13-hibernate-setup: sleep, then hibernate after HibernateDelaySec (1 h).
+[Login]
+HandlePowerKey=suspend-then-hibernate
+HandleLidSwitch=suspend-then-hibernate
+HandleLidSwitchExternalPower=suspend-then-hibernate
+CONF
+
+echo "==> Checking the initramfs can resume"
+img=/usr/lib/modules/$(uname -r)/initramfs.img
+if command -v lsinitrd >/dev/null && [[ -e $img ]]; then
+  lsinitrd "$img" 2>/dev/null | grep -q systemd-hibernate-resume \
+    && echo "    OK: systemd-hibernate-resume is in the initramfs" \
+    || echo "    WARNING: systemd-hibernate-resume not found in $img; resume may not work"
+fi
+
+cat <<MSG
+
+Done. Reboot (kernel arguments), then:
+  1. ujust z13-hibernate-test     (pm_test stages; nothing is written to disk)
+  2. systemctl hibernate          (first real test; Wi-Fi should come back after resume)
+Logind picks up the new power-button/lid setting after the reboot.
+MSG

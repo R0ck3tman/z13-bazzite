@@ -1,0 +1,15 @@
+#!/bin/sh
+# Hibernate on the GZ302EA (both found with pm_test on CachyOS):
+#  * the MT7925 Wi-Fi times out on resume (wiphy_resume -110), so unload it first;
+#  * taking CPUs offline hangs while a sched_ext scheduler is loaded, so stop scx_loader first
+#    (only if it's running; it's off by default on Bazzite).
+[ "$2" = hibernate ] || [ "$2" = suspend-then-hibernate ] || exit 0
+flag=/run/z13-scx-was-active
+case $1 in
+  pre)
+    if systemctl -q is-active scx_loader.service; then touch "$flag"; systemctl stop scx_loader.service; fi
+    modprobe -r mt7925e ;;
+  post)
+    modprobe mt7925e
+    if [ -e "$flag" ]; then rm -f "$flag"; systemctl start scx_loader.service; fi ;;
+esac

@@ -1,0 +1,4 @@
+# ELAN9008 touchscreen: read access for the logged-in user (z13-tablet-kit two-finger scroll and
+# gestures read it directly) plus a stable /dev/input/z13-touchscreen name.
+ACTION=="add|change", SUBSYSTEM=="input", ATTRS{name}=="ELAN9008:00 04F3:43C7", TAG+="uaccess"
+SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_TOUCHSCREEN}=="1", ATTRS{name}=="ELAN9008:00 04F3:43C7", SYMLINK+="input/z13-touchscreen"

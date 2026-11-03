@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Find which hibernate stage hangs, using the kernel's pm_test mode. Each stage suspends
+# up to that point, waits 5 s, then resumes WITHOUT writing an image or powering off.
+# Usage: ujust z13-hibernate-test
+# If the machine hangs, hold the power button, boot, and check the journal. The last stage
+# logged in the journal (journalctl -b -1 | grep z13-hibtest) is the one that hung.
+set -uo pipefail
+[[ $EUID -eq 0 ]] || { echo "Run as root"; exit 1; }
+
+log() { echo "$*"; logger -t z13-hibtest "$*"; journalctl --sync; sync; }
+
+echo "Available test levels: $(cat /sys/power/pm_test)"
+# Same conditions as a real hibernate now: Wi-Fi unloaded, plain power-off instead of firmware S4.
+scx_was=0; systemctl -q is-active scx_loader.service && { scx_was=1; systemctl stop scx_loader.service; }
+modprobe -r mt7925e
+echo shutdown > /sys/power/disk
+for stage in freezer devices platform processors core; do
+  log "START $stage"
+  echo "$stage" > /sys/power/pm_test
+  if echo disk > /sys/power/state; then
+    log "OK    $stage"
+  else
+    log "FAIL  $stage (exit $?)"
+  fi
+  sleep 3
+done
+echo none > /sys/power/pm_test
+modprobe mt7925e
+[[ $scx_was == 1 ]] && systemctl start scx_loader.service
+log "All stages passed: the hang is in writing the image or powering off."
+echo
+echo "Kernel messages from the test:"
+journalctl -k -b --since "-5 min" | grep -iE 'PM:|hibernat|fail|error|timeout|amdgpu.*(suspend|resume)' | tail -30

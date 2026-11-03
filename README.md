@@ -1,61 +1,62 @@
 # z13-bazzite
 
-A custom [Bazzite](https://bazzite.gg) image for the **ASUS ROG Flow Z13 (2025, GZ302EA)**, built
-automatically by GitHub Actions. From the Root & Raid video
-[*"ROG Flow Z13 on Linux: How I Customized Bazzite (3 Bugs I Hit)"*](https://youtu.be/DsqKCMzaBIE).
-The [written guide](https://rootandraid.com/guides/custom-bazzite-rog-flow-z13/) has every command from it.
+A custom [Bazzite](https://bazzite.gg) (KDE) image for the **ASUS ROG Flow Z13 (2025, GZ302EA)**,
+set up for **Plasma + [Konveyor](https://github.com/DevL0rd/Konveyor)** scrolling tiling, an
+iPad-style tablet mode, face unlock on the lock screen and a PIN on the login screen.
+GitHub Actions rebuilds it every Sunday on top of the latest `bazzite:stable`.
 
-## What it adds on top of stock Bazzite
+Forked from [stephensedge/z13-bazzite](https://github.com/stephensedge/z13-bazzite) (Root & Raid,
+[video](https://youtu.be/DsqKCMzaBIE), [guide](https://rootandraid.com/guides/custom-bazzite-rog-flow-z13/)).
+On top of that, it carries over the fixes from a CachyOS setup on the same tablet.
 
-| Fix / tool | Why |
+## What it adds to stock Bazzite
+
+| Area | What |
 |---|---|
-| `asusctl` + ROG Control Center | fans, power profiles, keyboard (asus-linux COPR) |
-| [`z13ctl`](https://github.com/dahui/z13ctl) + `lightbar` | control the rear RGB light bar: `lightbar purple` |
-| Bluetooth: power on at boot, auto-reconnect service, no autosuspend on the MT7925 adapter | mice and controllers kept dropping, especially after sleep |
-| `mt7925e disable_aspm=1` | Wi-Fi power saving was crashing suspend |
-| USB wakeup hook | detaching the keyboard woke the tablet straight back up |
-| sensor labels | readable temperature and fan names in widgets |
+| ASUS | asusctl + ROG Control Center (Bazzite retired its ASUS images) |
+| Wi-Fi | MT7925: ASPM off, power saving off |
+| Bluetooth | Power on at boot, BLE address privacy, reconnect retries + auto-reconnect service, no autosuspend |
+| Sleep | Hibernate fixes (unload MT7925, stop sched_ext, `HibernateMode=shutdown`), opt-in USB-wakeup fix for the cover |
+| Audio | Speaker amps at 19.5 dB (stock linux-firmware profile) instead of 15.5 dB |
+| Input | Cover touchpad marked internal (disable-while-typing), touchscreen access for the tablet kit, `uinput` at boot |
+| Tablet | z13ctl-plus (binary + user units only), plasma-keyboard, python3-evdev for the custom OSK helper |
+| Login | howdy face unlock on the lock screen, login PIN (pam_exec) with faillock |
+| Apps | Ghostty, KDE Connect, gnome-keyring (TPM-sealed unlock after face/PIN login) |
+| Tools | `ujust z13-*` recipes for the per-machine steps |
+
+Full list with causes, files and how to verify each one: **[docs/FIXES.md](docs/FIXES.md)**.
+Install procedure: **[docs/INSTALL.md](docs/INSTALL.md)**.
 
 ## Use it
 
-Switch an existing Bazzite install to this image, then reboot:
+From a Bazzite (KDE) install:
 
 ```bash
-sudo bootc switch ghcr.io/<your-github-user>/z13-bazzite:latest
+sudo bootc switch ghcr.io/r0ck3tman/z13-bazzite:latest
 systemctl reboot
 ```
 
-The image you came from stays on disk. If anything's wrong, pick it in the boot menu, or:
+Roll back any time: `sudo bootc rollback && systemctl reboot`, or pick the previous entry in the
+boot menu.
 
-```bash
-sudo bootc rollback && systemctl reboot
-```
+## `ujust` recipes
 
-## Make your own
-
-Fork this, change the `Containerfile`, push, and GitHub builds the image for you (about 8
-minutes). For a signed image and a more complete starting point, use Universal Blue's official
-[image-template](https://github.com/ublue-os/image-template).
-
-## Differences from the image on my own tablet
-
-This is the public, gaming-only version of the image I run every day. The fixes are the same;
-two things are deliberately tighter here:
-
-- **RGB device access** uses `uaccess` (only the person logged in at the tablet) instead of making
-  the devices world-writable. On my tablet I also drive the light bar over SSH, which `uaccess`
-  doesn't allow; if you need that, it's your call to loosen it.
-- **No polkit rule** letting the `wheel` group restart Bluetooth without a password. The
-  reconnect helper doesn't need it.
-
-**Honest status:** this public image is built by GitHub Actions from the same fixes, but the public
-build itself hasn't been booted on hardware yet. Keep your previous deployment until you've
-rebooted into it and checked it.
+| Recipe | What |
+|---|---|
+| `ujust z13-kargs [--brightness-fix]` | USB autosuspend off, RTC wake; optional `amdgpu.dcdebugmask=0x40000` |
+| `ujust z13-user-setup` | In Plasma: tablet kit, z13ctl-plus settings, Konveyor, Flatpaks |
+| `ujust z13-restore-home [snapshot]` | From a text console: restore Plasma/Konveyor configs from a backup |
+| `ujust z13-howdy-setup` | IR camera, 8 s timeout, enroll two face models |
+| `ujust z13-login-pin [--remove]` | Set/change/remove the login PIN |
+| `ujust z13-keyring-seal` | TPM-seal the login password for keyring unlock after face/PIN login |
+| `ujust z13-hibernate-setup [SIZE]` | Swapfile, resume kargs, suspend-then-hibernate |
+| `ujust z13-hibernate-test` | pm_test each hibernate stage |
+| `ujust z13-usb-wakeup-fix on\|off` | Stop cover detach from waking the tablet |
+| `ujust z13-scx on\|off` | scx_lavd scheduler |
 
 ## Notes
 
-- Kernel parameters are **not** in the image. They're per-machine (`rpm-ostree kargs`) and survive
-  image updates. This tablet needs some for display stability; the
-  [guide](https://rootandraid.com/guides/custom-bazzite-rog-flow-z13/#bug-1-a-black-screen-at-full-brightness) has the exact ones.
-- Hardware-specific: the fixes were developed and tested on a GZ302EA. On other hardware, keep the method and change
-  the fixes.
+- Kernel arguments aren't in the image: they're per machine (`ujust z13-kargs`) and survive updates.
+- Nothing secret is in this repo: the PIN hash, face models and sealed keyring password are created
+  on the machine.
+- Hardware-specific: built for a GZ302EA. On other hardware keep the method, change the fixes.

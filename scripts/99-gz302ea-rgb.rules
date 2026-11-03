@@ -1,9 +1,0 @@
-# Let the logged-in user control the GZ302EA's RGB devices without root.
-# uaccess grants access only to whoever is at the machine's seat — not to every
-# account and process on the system, as a world-writable MODE="0666" would.
-# N-KEY device (rear window light bar)
-SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="18c6", TAG+="uaccess"
-SUBSYSTEM=="usb", ATTR{idVendor}=="0b05", ATTR{idProduct}=="18c6", TAG+="uaccess"
-# Keyboard RGB
-SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0b05", ATTRS{idProduct}=="1a30", TAG+="uaccess"
-SUBSYSTEM=="usb", ATTR{idVendor}=="0b05", ATTR{idProduct}=="1a30", TAG+="uaccess"

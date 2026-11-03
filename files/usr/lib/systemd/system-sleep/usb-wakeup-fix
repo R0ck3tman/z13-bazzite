@@ -2,6 +2,10 @@
 # Fix for ASUS ROG Z13 2025 keyboard lid causing spurious wakeups from suspend.
 # Disables USB wakeup before suspend to prevent keyboard detach/reattach from
 # immediately waking the system. Re-enables on resume.
+#
+# z13-bazzite: off by default. While it's on, keyboard-cover keys can't wake the tablet either (only
+# the power button can). Turn it on with `ujust z13-usb-wakeup-fix on` if detaching the cover wakes it.
+[ -e /etc/z13-bazzite/usb-wakeup-fix ] || exit 0
 
 case $1 in
     pre)

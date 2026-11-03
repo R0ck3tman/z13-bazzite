@@ -1,0 +1,9 @@
+#!/bin/bash
+# Called by pam_exec (expose_authtok) from /etc/pam.d/plasmalogin: exit 0 if the typed secret is the
+# login PIN stored by `ujust z13-login-pin` in /etc/z13-login-pin (sha512-crypt, root only).
+# No PIN file, or anything that isn't 6-12 digits: exit 1, and PAM goes on to the password check.
+IFS= read -r -d '' typed || true
+[[ $typed =~ ^[0-9]{6,12}$ && -r /etc/z13-login-pin ]] || exit 1
+stored=$(</etc/z13-login-pin)
+salt=${stored#\$6\$}; salt=${salt%%\$*}
+[[ $(printf '%s' "$typed" | openssl passwd -6 -salt "$salt" -stdin) == "$stored" ]]

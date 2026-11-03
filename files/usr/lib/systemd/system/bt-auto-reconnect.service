@@ -5,7 +5,7 @@ Requires=bluetooth.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/bt-auto-reconnect.sh
+ExecStart=/usr/libexec/z13/bt-auto-reconnect
 Restart=always
 RestartSec=5
 

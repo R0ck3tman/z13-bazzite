@@ -1,0 +1,11 @@
+#!/usr/bin/bash
+# Turn the USB-wakeup-during-sleep fix on or off. Usage (as root): z13-usb-wakeup-fix on|off|status
+# On: detaching/attaching the keyboard cover no longer wakes the tablet, but cover keys can't wake it
+# either; use the power button.
+set -euo pipefail
+flag=/etc/z13-bazzite/usb-wakeup-fix
+case ${1:-status} in
+  on)  [[ $EUID -eq 0 ]] || { echo "Run as root"; exit 1; }; mkdir -p "${flag%/*}"; touch "$flag"; echo "On." ;;
+  off) [[ $EUID -eq 0 ]] || { echo "Run as root"; exit 1; }; rm -f "$flag"; echo "Off." ;;
+  *)   [[ -e $flag ]] && echo "On" || echo "Off" ;;
+esac

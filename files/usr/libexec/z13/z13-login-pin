@@ -1,0 +1,23 @@
+#!/usr/bin/bash
+# iPad-style login PIN for the Plasma login screen (your password keeps working too).
+# Usage (as root): z13-login-pin            set or change the PIN
+#                  z13-login-pin --remove   password-only login again
+# The PAM side is in the image (/etc/pam.d/plasmalogin -> /usr/libexec/z13/check-login-pin). A wrong
+# PIN is passed on to the password check, so it counts towards pam_faillock (3 tries -> 10 minutes).
+# The disk isn't encrypted: the PIN is a convenience lock, not data protection.
+set -euo pipefail
+[[ $EUID -eq 0 ]] || { echo "Run as root (ujust asks for your password)"; exit 1; }
+if [[ ${1:-} == --remove ]]; then rm -f /etc/z13-login-pin; echo "PIN removed."; exit 0; fi
+while :; do
+  read -rsp "New login PIN (6-12 digits): " pin; echo
+  [[ $pin =~ ^[0-9]{6,12}$ ]] || { echo "Use 6 to 12 digits."; continue; }
+  read -rsp "Repeat PIN: " pin2; echo
+  [[ $pin == "$pin2" ]] && break
+  echo "PINs don't match."
+done
+umask 077
+printf '%s' "$pin" | openssl passwd -6 -stdin > /etc/z13-login-pin
+unset pin pin2
+restorecon /etc/z13-login-pin 2>/dev/null || true
+grep -q check-login-pin /etc/pam.d/plasmalogin || echo "WARNING: /etc/pam.d/plasmalogin has no PIN line. Was it edited locally? Compare with /usr/etc or the image."
+echo "Done. On the login screen type the PIN (or your password) and press Enter."
