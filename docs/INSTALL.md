@@ -34,7 +34,16 @@ Order matters: the image is built and checked **before** the CachyOS install is 
 ## Phase 3: desktop
 
 11. In Plasma: `ujust z13-user-setup` (Flatpaks, tablet kit, z13ctl-plus, Konveyor).
-12. Log out → Ctrl+Alt+F3 → log in → `ujust z13-restore-home` (USB plugged in). Log back in to Plasma.
+12. Log out → Ctrl+Alt+F3 → log in with the USB plugged in. A text console doesn't mount it for you:
+    ```bash
+    udisksctl mount -b /dev/sda1   # check the device name with lsblk
+    ujust z13-restore-home
+    udisksctl unmount -b /dev/sda1
+    exit
+    ```
+    Then Ctrl+Alt+F1 (or F2) and log back in to Plasma.
+    If a widget fails with `uses incompatible Qt library`, it was built on the old system: see
+    "Rebuilding Punchi Dock" below.
 13. `ujust z13-howdy-setup`, `ujust z13-login-pin`, `ujust z13-keyring-seal`. Lock the screen to test
     face unlock; reboot to test the PIN.
 14. Mic: `wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 0.40`. EasyEffects: set "Z13 Speakers" to autoload.
@@ -43,15 +52,37 @@ Order matters: the image is built and checked **before** the CachyOS install is 
 ## Phase 4: hibernate (last)
 
 16. `ujust z13-hibernate-setup`, reboot, `ujust z13-hibernate-test`, then `systemctl hibernate`.
-    If resume fails, leave it: power button and cover close stay on plain suspend until step 16
-    succeeds (`rm /etc/systemd/logind.conf.d/z13-hibernate.conf` to go back).
+    Power button and cover close stay on plain suspend either way, so if resume fails, you can leave it.
+    Control Station's "Hibernate" button really runs suspend-then-hibernate: it sleeps first.
+
+## Rebuilding Punchi Dock
+
+The dock has a compiled plugin tied to the system's Qt version, and nothing rebuilds it automatically.
+Repeat this when it fails with `uses incompatible Qt library`, for example after an image update.
+Konveyor's toolbox matches the system's Qt, so build there:
+
+```bash
+git clone https://github.com/PunchiSoft/punchi-dock-remastered ~/.local/src/punchi-dock-remastered
+toolbox run -c konveyor-fedora-44 sudo dnf install -y plasma-workspace-devel-6.7.5-1.fc44 \
+  qt6-qtdeclarative-devel qt6-qtshadertools kf6-kconfig-devel kf6-kcoreaddons-devel \
+  kf6-kglobalaccel-devel kf6-ki18n-devel kf6-kjobwidgets-devel kf6-kio-devel kf6-kpackage-devel \
+  kf6-kservice-devel kf6-kwindowsystem-devel libplasma-devel plasma-activities-devel \
+  plasma-activities-stats-devel pipewire-devel kf6-kpackage gettext unzip zip
+cd ~/.local/src/punchi-dock-remastered
+toolbox run -c konveyor-fedora-44 ./scripts-user/setup.sh --build-only --jobs 4
+kpackagetool6 --type Plasma/Applet --upgrade dist/*.plasmoid   # on the host; keep only the newest in dist/
+systemctl --user restart plasma-plasmashell
+```
+
+Match `plasma-workspace-devel` to the system's version (`rpm -q plasma-workspace`). The clone and
+package install only need to happen once; after that, `git pull` and rebuild.
 
 ## Checklist
 
 - [ ] `rpm-ostree status` shows `ghcr.io/r0ck3tman/z13-bazzite`; `systemctl status asusd` active
 - [ ] Charge limit 80% survives a reboot; cover RGB follows ROG Control Center
 - [ ] `journalctl -k -b | grep Gain:` shows 19
-- [ ] `iw dev wlan0 get power_save` = off; Wi-Fi survives 5 suspend cycles
+- [ ] `iw dev wlp194s0 get power_save` = off; Wi-Fi survives 5 suspend cycles
 - [ ] Bluetooth mouse reconnects after suspend without re-pairing
 - [ ] Brightness at 100% isn't black
 - [ ] Konveyor loads after login, and again after the next image update (it rebuilds at login)
@@ -67,7 +98,9 @@ Order matters: the image is built and checked **before** the CachyOS install is 
   (`kwinoutputconfig.json`) isn't restored on purpose.
 - **Applet numbers** in the edge-swipe KWin script can change if widgets get re-added: re-run
   `~/z13-ipad-edges.sh` from the USB.
-- **Hibernate on Bazzite** has open resume-failure reports on other hardware.
+- **Hibernate on Bazzite** has open resume-failure reports on other hardware. On this tablet, the first
+  real hibernate restored the desktop and then reset (`internal CPU shutdown event`); the next three
+  worked, including one right after `z13-hibernate-test`. The cause wasn't found, so save your work first.
 - **SELinux** (enforcing on Bazzite, not used on CachyOS) could block the PIN helper or howdy. The
   password always still works; check `sudo ausearch -m avc -ts recent`.
 

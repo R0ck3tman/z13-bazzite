@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+# Create the GNOME "login" keyring if it doesn't exist yet, and make it the default.
+# Called by z13-keyring-seal.sh, which sends the login password on stdin. A fresh install has no login
+# keyring, and z13-keyring-unlock can only unlock one that exists.
+import sys
+
+from gi.repository import Gio, GLib
+
+BUS, ROOT = "org.freedesktop.secrets", "/org/freedesktop/secrets"
+COLL = ROOT + "/collection/login"
+SERVICE = "org.freedesktop.Secret.Service"
+INTERNAL = "org.gnome.keyring.InternalUnsupportedGuiltRiddenInterface"
+
+bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+
+
+def call(path, iface, method, args, reply):
+    return bus.call_sync(BUS, path, iface, method, args, GLib.VariantType(reply),
+                         Gio.DBusCallFlags.NONE, 10000, None).unpack()
+
+
+collections = call(ROOT, "org.freedesktop.DBus.Properties", "Get",
+                   GLib.Variant("(ss)", (SERVICE, "Collections")), "(v)")[0]
+if COLL not in collections:
+    pw = sys.stdin.buffer.read()
+    _, session = call(ROOT, SERVICE, "OpenSession",
+                      GLib.Variant("(sv)", ("plain", GLib.Variant("s", ""))), "(vo)")
+    attrs = {"org.freedesktop.Secret.Collection.Label": GLib.Variant("s", "login")}
+    created = call(ROOT, INTERNAL, "CreateWithMasterPassword",
+                   GLib.Variant("(a{sv}(oayays))", (attrs, (session, b"", pw, "text/plain"))), "(o)")[0]
+    del pw
+    if created != COLL:
+        sys.exit(f"z13-keyring-create: unexpected keyring path {created}")
+    print("Created the login keyring.")
+
+call(ROOT, SERVICE, "SetAlias", GLib.Variant("(so)", ("default", COLL)), "()")

@@ -30,9 +30,9 @@ z13-login-pin *ARGS:
 z13-keyring-seal:
     bash /usr/share/z13-bazzite/z13-keyring-seal.sh
 
-# Hibernation: 48G swapfile, resume kargs, cover close/power button -> suspend-then-hibernate
+# Hibernation: 64G swapfile and resume kargs. Cover close and power button stay on plain suspend
 [group('Z13')]
-z13-hibernate-setup SIZE="48G":
+z13-hibernate-setup SIZE="64G":
     sudo /usr/libexec/z13/z13-hibernate-setup {{ SIZE }}
 
 # Test each hibernate stage with pm_test (writes nothing to disk)

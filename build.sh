@@ -37,6 +37,15 @@ install -Dm644 "$tmp/contrib/systemd/user/z13ctl-plus.socket"  /usr/lib/systemd/
 install -Dm644 "$tmp/contrib/systemd/user/z13ctl-plus.service" /usr/lib/systemd/user/z13ctl-plus.service
 rm -rf "$tmp"
 
+# --- qdbus6 --------------------------------------------------------------------------------------
+# z13-tablet-kit's dock and z13-ipad-mode call qdbus6; Fedora names the tool qdbus-qt6. Without it, dock
+# can't find the touchscreen and stops before it sets the posture and the on-screen keyboard mode.
+if [[ -x /usr/bin/qdbus-qt6 ]]; then
+    ln -sf qdbus-qt6 /usr/bin/qdbus6
+else
+    echo "WARNING: qdbus-qt6 not found; z13-tablet-kit's posture handling won't work" >&2
+fi
+
 # --- Speaker amp gain 19.5 dB ---------------------------------------------------------------------
 # The CS35L41 amps run Cirrus's 15.5 dB tuning; linux-firmware also ships 19.5 dB. Firmware in
 # updates/ is searched first. Speaker protection and per-unit calibration stay active.

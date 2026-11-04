@@ -36,7 +36,7 @@ stephensedge/z13-bazzite; "CachyOS" means it was found on the previous CachyOS i
 
 ### Wi-Fi power saving off (CachyOS)
 - **Where:** `files/usr/lib/NetworkManager/conf.d/z13-wifi-powersave.conf` (`wifi.powersave = 2`).
-- **Check:** `iw dev wlan0 get power_save` → `off`.
+- **Check:** `iw dev wlp194s0 get power_save` → `off`.
 
 ### Bluetooth reconnects (upstream)
 - **Symptom:** mice/controllers drop, especially after sleep, and need re-pairing.
@@ -61,8 +61,9 @@ stephensedge/z13-bazzite; "CachyOS" means it was found on the previous CachyOS i
 - **Where:** `files/usr/lib/systemd/system-sleep/z13-mt7925e` (unload mt7925e, stop scx_loader if
   running), `files/usr/lib/systemd/sleep.conf.d/z13.conf` (`HibernateMode=shutdown`,
   `HibernateDelaySec=1h`). Swapfile + resume kargs: `ujust z13-hibernate-setup`.
-- **Power button / cover close:** plain suspend in the image (suspend-then-hibernate fails without
-  swap). `z13-hibernate-setup` writes `/etc/systemd/logind.conf.d/z13-hibernate.conf` to switch them.
+- **Swapfile size:** 64G by default, since Linux can see up to ~58 GB of RAM.
+- **Power button / cover close:** plain suspend, also after `z13-hibernate-setup`. To change that, use
+  a logind drop-in whose name sorts after `z13.conf` (see `files/usr/lib/systemd/logind.conf.d/z13.conf`).
 - **Check:** `ujust z13-hibernate-test`, then `systemctl hibernate`.
 
 ### Shutdown hang on test kernels (upstream, nothing to do)
@@ -97,6 +98,7 @@ stephensedge/z13-bazzite; "CachyOS" means it was found on the previous CachyOS i
 | Touchscreen uaccess + `/dev/input/z13-touchscreen` | `udev/rules.d/70-z13-touchscreen.rules` | z13-tablet-kit reads the ELAN9008 directly |
 | `uinput` at boot | `modules-load.d/z13-uinput.conf` | Not autoloaded, so `/dev/uinput` had no uaccess ACL |
 | plasma-keyboard + python3-evdev | `build.sh` | Custom OSK; KWin drops modifiers from the input method, so Ctrl/Alt/Super go through `z13-osk-keys` (uinput) |
+| `qdbus6` link to `qdbus-qt6` | `build.sh` | Fedora's name differs. Without it, z13-tablet-kit's `dock` logs `touchscreen unavailable` and never sets the posture or OSK mode, and `z13-ipad-mode`'s dock step fails |
 
 ## Login and lock screen
 
@@ -116,5 +118,6 @@ stephensedge/z13-bazzite; "CachyOS" means it was found on the previous CachyOS i
 ### Keyring after face/PIN login (CachyOS)
 - **Why:** PAM never sees the password, so the keyring stays locked.
 - **Where:** gnome-keyring in the image; `z13-user-setup` turns off KWallet's Secret Service;
-  `ujust z13-keyring-seal` seals the password with the TPM (`systemd-creds --user`);
+  `ujust z13-keyring-seal` seals the password with the TPM (`systemd-creds --user`) and creates the
+  login keyring if there isn't one (`/usr/libexec/z13/z13-keyring-create`);
   `~/.local/bin/z13-keyring-unlock` (autostart) unlocks at login. Re-seal after a password change.

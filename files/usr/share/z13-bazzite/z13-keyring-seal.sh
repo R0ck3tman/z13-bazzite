@@ -14,9 +14,12 @@ read -rsp "Again: " pw2; echo
 mkdir -p "${CRED%/*}"; chmod 700 "${CRED%/*}"
 printf %s "$pw" | systemd-creds --user encrypt --name=z13-keyring - "$CRED"
 chmod 600 "$CRED"
-unset pw pw2
 echo "Sealed to $CRED"
 
-# Make the "login" keyring the default, so apps store secrets where the login unlock reaches.
+# A fresh install has no "login" keyring. Create it if needed and make it the default, so apps store
+# secrets where the login unlock reaches.
+mkdir -p ~/.local/share/keyrings
+printf %s "$pw" | /usr/libexec/z13/z13-keyring-create
+unset pw pw2
 echo -n login > ~/.local/share/keyrings/default
 ~/.local/bin/z13-keyring-unlock && echo "Keyring unlocked: it works."

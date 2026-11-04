@@ -49,7 +49,7 @@ boot menu.
 | `ujust z13-howdy-setup` | IR camera, 8 s timeout, enroll two face models |
 | `ujust z13-login-pin [--remove]` | Set/change/remove the login PIN |
 | `ujust z13-keyring-seal` | TPM-seal the login password for keyring unlock after face/PIN login |
-| `ujust z13-hibernate-setup [SIZE]` | Swapfile, resume kargs, suspend-then-hibernate |
+| `ujust z13-hibernate-setup [SIZE]` | Swapfile (64G by default) and resume kargs |
 | `ujust z13-hibernate-test` | pm_test each hibernate stage |
 | `ujust z13-usb-wakeup-fix on\|off` | Stop cover detach from waking the tablet |
 | `ujust z13-scx on\|off` | scx_lavd scheduler |
