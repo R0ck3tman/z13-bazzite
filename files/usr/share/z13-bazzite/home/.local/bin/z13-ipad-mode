@@ -1,0 +1,212 @@
+#!/usr/bin/env python3
+"""iPad-style tablet mode for Plasma + Konveyor. Follows KWin's tablet mode (driven by z13-tablet-kit).
+
+Tablet mode on the Z13's own screen (eDP-1):
+  * apps open full width, no gaps or focus ring; a 3-finger tap toggles half width (Split View);
+    apps that are already open are switched to full width
+  * the dock hides while an app covers it (Plasma "dodge windows"); the top panels auto-hide
+  * a swipe up shows the dock and a swipe down shows the top panels for REVEAL_SECONDS, over the apps
+    (KWin script z13-touch-edges calls ShowDock()/ShowTopPanels() on org.z13.IpadMode)
+  * no title bars (KWin rule "z13-tablet-noborder"; apps that draw their own keep theirs)
+Laptop/desktop: Konveyor's normal columns (apps on eDP-1 go back to half width), fixed panels and
+title bars; the two swipes do nothing because the panels are already showing.
+Home() opens Konveyor's full-screen app grid (Kontrol Panel, Apps page). No swipe calls it now.
+
+The Konveyor part is ~/.config/konveyor/tablet.kdl, included from config.kdl and rewritten here.
+Edge swipes are static (see ~/z13-ipad-edges.sh). Service: z13-ipad-mode.service (Plasma only).
+"""
+import json
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+from gi.repository import Gio, GLib
+
+PANEL = "eDP-1"
+TABLET_KDL = Path.home() / ".config/konveyor/tablet.kdl"
+TABLET_LAYOUT = f"""// Written by ~/.local/bin/z13-ipad-mode: tablet mode is ON. Do not edit.
+output "{PANEL}" {{
+    layout {{
+        gaps 0
+        always-center-single-column true
+        default-column-width {{ proportion 1.0; }}
+        preset-column-widths {{
+            proportion 0.5
+            proportion 1.0
+        }}
+        focus-ring {{ off; }}
+        struts {{
+            top 0
+            bottom 0
+        }}
+    }}
+}}
+"""
+DESKTOP_LAYOUT = "// Written by ~/.local/bin/z13-ipad-mode: tablet mode is off, nothing to add.\n"
+
+HOME_PAGE = "apps"  # Kontrol Panel page for Home: apps (all apps grid) or home (pinned apps)
+RULE = "z13-tablet-noborder"
+
+REVEAL_SECONDS = 5  # how long an edge swipe keeps a hidden panel on screen
+# Normal hiding per panel location: (tablet mode, laptop/desktop).
+PANEL_HIDING = {"bottom": ("dodgewindows", "none"), "top": ("autohide", "none")}
+SET_HIDING = """panels().forEach(function (p) {
+    if (p.location == "%s") p.hiding = "%s";
+});"""
+
+
+def set_hiding(location, hiding):
+    subprocess.run(["qdbus6", "org.kde.plasmashell", "/PlasmaShell", "org.kde.PlasmaShell.evaluateScript",
+                    SET_HIDING % (location, hiding)], check=True, capture_output=True, timeout=10)
+
+
+def msg(*args, json_out=False):
+    cmd = ["konveyor", "msg"] + (["--json"] if json_out else []) + list(args)
+    out = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+    if out.returncode:
+        raise RuntimeError(f"{' '.join(cmd)}: {out.stderr.strip()}")
+    return json.loads(out.stdout) if json_out else out.stdout
+
+
+def resize_panel_columns(width):
+    """Set every tiled column on the Z13 screen to `width`, then put focus back where it was."""
+    workspaces = msg("workspaces", json_out=True)
+    windows = {w["id"]: w for w in msg("windows", json_out=True)}
+    focused = next((w for w in windows.values() if w["is_focused"]), None)
+    focused_ws = next((ws for ws in workspaces if focused and ws["id"] == focused["workspace_id"]), None)
+    mine = [ws for ws in workspaces if ws["output"] == PANEL and ws["columns"]]
+    if not mine:
+        return
+    active = next((ws for ws in workspaces if ws["output"] == PANEL and ws["is_active"]), None)
+    msg("action", "focus-monitor", PANEL)
+    for ws in mine:
+        msg("action", "focus-workspace", str(ws["idx"]))
+        for i, column in enumerate(ws["columns"], 1):
+            if all(windows.get(wid, {}).get("is_floating") for wid in column):
+                continue
+            msg("action", "focus-column", str(i))
+            msg("action", "set-column-width", width)
+    if active:
+        msg("action", "focus-workspace", str(active["idx"]))
+    if focused and focused_ws:
+        msg("action", "focus-monitor", focused_ws["output"])
+        msg("action", "focus-workspace", str(focused_ws["idx"]))
+        msg("action", "focus-column", str(focused["layout"]["pos_in_scrolling_layout"][0]))
+
+
+def set_title_bars(tablet):
+    """Force server-side title bars off on normal windows in tablet mode (KWin rule RULE).
+
+    KWin keeps a window's last decoration state when a rule stops forcing it, so leaving tablet mode
+    first forces KWin's default ("client-preference") onto every window, then retires the rule (KWin
+    drops a rule group that no longer does anything). Don't write [General] rules: in KWin 6.8 every
+    group is a rule, and a non-empty legacy list makes KWin delete the groups not on it.
+    """
+    def write(policy, rule):
+        for key, value in (("Description", "Tablet mode: no title bars (z13-ipad-mode)"), ("types", "1"),
+                           ("wmclassmatch", "0"), ("decorationpolicy", policy), ("decorationpolicyrule", rule)):
+            subprocess.run(["kwriteconfig6", "--file", "kwinrulesrc", "--group", RULE, "--key", key, value],
+                           check=True)
+        subprocess.run(["gdbus", "call", "--session", "--dest", "org.kde.KWin", "--object-path", "/KWin",
+                        "--method", "org.kde.KWin.reconfigure"], check=True, capture_output=True)
+
+    if tablet:
+        write("none", "2")
+    else:
+        write("client-preference", "2")
+        time.sleep(1)
+        write("client-preference", "0")
+
+
+def apply(tablet):
+    TABLET_KDL.write_text(TABLET_LAYOUT if tablet else DESKTOP_LAYOUT)
+    time.sleep(0.5)  # let Konveyor reload the config
+    for step, fn in (("dock", lambda: set_hiding("bottom", PANEL_HIDING["bottom"][0 if tablet else 1])),
+                     ("top panels", lambda: set_hiding("top", PANEL_HIDING["top"][0 if tablet else 1])),
+                     ("title bars", lambda: set_title_bars(tablet)),
+                     ("columns", lambda: resize_panel_columns("100%" if tablet else "50%"))):
+        try:
+            fn()
+        except Exception as exc:  # keep going: one failing part shouldn't block the others
+            print(f"z13-ipad-mode: {step}: {exc}", file=sys.stderr)
+    print(f"z13-ipad-mode: tablet mode {'on' if tablet else 'off'}", flush=True)
+
+
+bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+
+
+def tablet_mode():
+    v = bus.call_sync("org.kde.KWin", "/org/kde/KWin", "org.freedesktop.DBus.Properties", "Get",
+                      GLib.Variant("(ss)", ("org.kde.KWin.TabletModeManager", "tabletMode")),
+                      GLib.VariantType("(v)"), Gio.DBusCallFlags.NONE, 5000, None)
+    return v.unpack()[0]
+
+
+state = {"tablet": None}
+
+INTROSPECTION = Gio.DBusNodeInfo.new_for_xml(
+    '<node><interface name="org.z13.IpadMode"><method name="Home"/><method name="ShowDock"/>'
+    '<method name="ShowTopPanels"/></interface></node>')
+
+reveal_timers = {}
+
+
+def home():
+    subprocess.Popen(["portal-launcher", HOME_PAGE])
+
+
+def reveal(location):
+    """Show a hidden panel over the windows for a moment, in tablet mode only. Another swipe restarts the time."""
+    if not state["tablet"]:
+        return
+    if location in reveal_timers:
+        GLib.source_remove(reveal_timers.pop(location))
+    set_hiding(location, "windowsgobelow")
+
+    def restore():
+        del reveal_timers[location]
+        try:
+            set_hiding(location, PANEL_HIDING[location][0 if state["tablet"] else 1])
+        except Exception as exc:
+            print(f"z13-ipad-mode: restore {location}: {exc}", file=sys.stderr)
+        return GLib.SOURCE_REMOVE
+
+    reveal_timers[location] = GLib.timeout_add_seconds(REVEAL_SECONDS, restore)
+
+
+ACTIONS = {"Home": home, "ShowDock": lambda: reveal("bottom"), "ShowTopPanels": lambda: reveal("top")}
+
+
+def on_call(_conn, _sender, _path, _iface, method, _params, invocation):
+    try:
+        ACTIONS[method]()
+    except Exception as exc:
+        print(f"z13-ipad-mode: {method}: {exc}", file=sys.stderr)
+    invocation.return_value(None)
+
+
+bus.register_object("/org/z13/IpadMode", INTROSPECTION.interfaces[0], on_call, None, None)
+Gio.bus_own_name_on_connection(bus, "org.z13.IpadMode", Gio.BusNameOwnerFlags.NONE, None, None)
+
+
+def changed(*_):
+    tablet = tablet_mode()
+    if tablet != state["tablet"]:
+        state["tablet"] = tablet
+        apply(tablet)
+
+
+bus.signal_subscribe("org.kde.KWin", "org.freedesktop.DBus.Properties", "PropertiesChanged", "/org/kde/KWin",
+                     "org.kde.KWin.TabletModeManager", Gio.DBusSignalFlags.NONE, changed)
+# KWin 6.7 announces changes only with this signal. changed() ignores repeats if both arrive.
+bus.signal_subscribe("org.kde.KWin", "org.kde.KWin.TabletModeManager", "tabletModeChanged", "/org/kde/KWin",
+                     None, Gio.DBusSignalFlags.NONE, changed)
+for _ in range(30):  # plasmashell and Konveyor may still be starting
+    try:
+        msg("version")
+        break
+    except Exception:
+        time.sleep(1)
+changed()
+GLib.MainLoop().run()

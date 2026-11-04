@@ -1,0 +1,12 @@
+[Unit]
+Description=Mirror keyboard lighting to the Z13 detachable cover
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/z13-kbd-sync
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

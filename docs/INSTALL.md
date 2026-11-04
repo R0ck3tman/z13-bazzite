@@ -80,13 +80,14 @@ package install only need to happen once; after that, `git pull` and rebuild.
 ## Checklist
 
 - [ ] `rpm-ostree status` shows `ghcr.io/r0ck3tman/z13-bazzite`; `systemctl status asusd` active
-- [ ] Charge limit 80% survives a reboot; cover RGB follows ROG Control Center
+- [ ] Charge limit 80% survives a reboot; ROG Control Center opens; cover and back light follow it
+- [ ] `asusctl profile get` shows AC Balanced, battery Quiet
 - [ ] `journalctl -k -b | grep Gain:` shows 19
 - [ ] `iw dev wlp194s0 get power_save` = off; Wi-Fi survives 5 suspend cycles
 - [ ] Bluetooth mouse reconnects after suspend without re-pairing
 - [ ] Brightness at 100% isn't black
 - [ ] Konveyor loads after login, and again after the next image update (it rebuilds at login)
-- [ ] Tablet mode: posture switch, iPad mode, OSK with Ctrl/Alt/Super, all four edge swipes
+- [ ] Tablet mode: posture switch, iPad mode, panels hide and return, OSK with Ctrl/Alt/Super, all four edge swipes
 - [ ] Docked: both monitors at 1440p144, eDP centred below
 - [ ] Lock screen face unlock; login PIN; keyring unlocked after both
 - [ ] Hibernate + resume with Wi-Fi back
@@ -96,8 +97,8 @@ package install only need to happen once; after that, `git pull` and rebuild.
 - **Plasma 6.8 → 6.7.** The CachyOS configs come from Plasma 6.8; Bazzite stable has 6.7.5. Watch
   `z13-ipad-mode`'s title-bar rule (`kwinrulesrc`) and the third-party widgets. Monitor layout
   (`kwinoutputconfig.json`) isn't restored on purpose.
-- **Applet numbers** in the edge-swipe KWin script can change if widgets get re-added: re-run
-  `~/z13-ipad-edges.sh` from the USB.
+- **Applet numbers** in the edge-swipe KWin script can change if widgets get re-added: follow the note
+  that `z13-restore-home` prints at the end. `~/z13-ipad-edges.sh` on the USB writes the old swipes.
 - **Hibernate on Bazzite** has open resume-failure reports on other hardware. On this tablet, the first
   real hibernate restored the desktop and then reset (`internal CPU shutdown event`); the next three
   worked, including one right after `z13-hibernate-test`. The cause wasn't found, so save your work first.

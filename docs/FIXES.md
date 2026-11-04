@@ -10,8 +10,28 @@ stephensedge/z13-bazzite; "CachyOS" means it was found on the previous CachyOS i
   keyboard and cover RGB. Bazzite dropped its ASUS images, so the main image lacks asusctl.
 - **Where:** `build.sh` (lukenukem/asus-linux COPR), `asusd.service` enabled.
 - **Check:** `systemctl status asusd`; `asusctl battery limit 80` then reboot and `cat /sys/class/power_supply/BAT0/charge_control_end_threshold`.
-- The cover's RGB is its own aura device (`1a30`); `asusctl leds` only reaches the internal `18c6`.
-  `~/.local/bin/z13-kbd-sync` mirrors 18c6 changes to the cover.
+- **Power profiles:** `z13-user-setup` sets Balanced on AC and Quiet on battery. `z13ctl-plus` logs
+  `tuning restored profile=balanced` on every resume, but it runs as the user and can't write the
+  profile, so it doesn't override this.
+
+### ROG Control Center crashes on open
+- **Symptom:** the window appears, then the app aborts:
+  `setup_aura.rs: index out of bounds: the len is 7 but the index is 255`.
+- **Cause:** the stock `aura_support.ron` gives GZ302's `18c6` the power zone `None` (255), and the app
+  uses that value as an index into its list of zone names.
+- **Where:** `files/etc/asusd/asusd_user_ledmodes.ron` reports zone `Keyboard` for `18c6`. It's named
+  `GZ302EA` so that it's picked ahead of the stock `GZ302` entry.
+- **Check:** `busctl get-property xyz.ljones.Asusd /xyz/ljones/aura/18c6_<bus>_<dev> xyz.ljones.Aura SupportedPowerZones` → `au 1 1`.
+
+### ROG Control Center drives the cover and the back light
+- **Why:** ROG Control Center and `asusctl` only change the first aura device, `18c6`. The cover (`1a30`)
+  and the light bar need their own writes, and the `z13ctl-plus` daemon restores its own saved lighting
+  when the cover is re-attached and after a resume.
+- **Where:** `z13-kbd-sync` (`usr/share/z13-bazzite/home/`, installed by `z13-restore-home`) copies 18c6
+  changes to the cover, then runs `z13ctl-plus apply` for the keyboard and light bar, which also saves them.
+  It does the same at login. Both lights always match: asusd's values are the source of truth.
+- **Pulse:** sent to `z13ctl-plus` as `strobe`, the closest name. How it looks hasn't been checked.
+- **Check:** change the effect in ROG Control Center, then re-attach the cover and sleep and wake.
 
 ### z13ctl-plus instead of z13ctl (changed from upstream)
 - **Why:** z13-tablet-kit uses z13ctl-plus as its display/posture coordinator. The project says to
@@ -25,8 +45,8 @@ stephensedge/z13-bazzite; "CachyOS" means it was found on the previous CachyOS i
 ### Light bar (dropped from upstream)
 - Upstream's `lightbar` wrapper, uaccess rule for `18c6`/`1a30` and `gz302ea-lightbar-reset.service`
   (unbinds 18c6 from the asus driver at boot) are not included. The reset service would disturb
-  asusd and z13-kbd-sync. To get the light bar back: `z13ctl-plus --device lightbar apply --color purple`
-  works once the logged-in user can open the hidraw device (a `TAG+="uaccess"` rule for 0b05:18c6).
+  asusd and z13-kbd-sync. The light bar still works without them: on this install the logged-in user
+  can already open its hidraw device, and `z13-kbd-sync` drives it through `z13ctl-plus`.
 
 ## Wi-Fi and Bluetooth
 
@@ -100,6 +120,12 @@ stephensedge/z13-bazzite; "CachyOS" means it was found on the previous CachyOS i
 | plasma-keyboard + python3-evdev | `build.sh` | Custom OSK; KWin drops modifiers from the input method, so Ctrl/Alt/Super go through `z13-osk-keys` (uinput) |
 | Two-finger scroll follows the fingers, in finer steps | `z13-touch-scroll-pointer.patch`, `z13-user-setup` | Wheel events go to the window under the pointer, not under the fingers. Claude Code scrolls this way (it still selects text); plain Ghostty scrolls with one finger |
 | `qdbus6` link to `qdbus-qt6` | `build.sh` | Fedora's name differs. Without it, z13-tablet-kit's `dock` logs `touchscreen unavailable` and never sets the posture or OSK mode, and `z13-ipad-mode`'s dock step fails |
+| Tablet mode follows KWin 6.7 | `home/.local/bin/z13-ipad-mode` | KWin 6.7 announces tablet mode only with `tabletModeChanged`, so the script also listens for that signal |
+| iPad-style panels and swipes | `home/.local/bin/z13-ipad-mode`, `home/.local/share/kwin/scripts/z13-touch-edges` | In tablet mode the dock and top panels hide. Swipe up shows the dock and swipe down shows the top panels, over the apps, for 5 s. Left = notifications, right = app switcher. Panels return when the cover is attached |
+
+`home/` is `files/usr/share/z13-bazzite/home/`. `z13-restore-home` copies it over the USB snapshot,
+because the snapshot holds older versions of these files. Plasma's `windowsgobelow` panel mode reads
+back as `none` in scripting; that's a gap in its getter, and the mode does apply.
 
 ## Login and lock screen
 

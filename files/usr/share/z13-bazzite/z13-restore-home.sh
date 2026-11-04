@@ -56,6 +56,9 @@ mapfile -t new_ids < <(konveyor_keys)
 echo "==> Restoring"
 tar -xzf "$TAR" -C "$HOME" --exclude='*.pre-*' --exclude='*.backup*' --exclude='lsw-app-*' "${want[@]}"
 
+echo "==> Applying this image's newer tablet-mode, swipe and lighting files"
+cp -r /usr/share/z13-bazzite/home/. "$HOME"/
+
 echo "==> Adjusting for Bazzite"
 if ((${#new_ids[@]})); then
   for k in $(konveyor_keys); do kwriteconfig6 --file kwinrc --group Plugins --key "$k" --delete; done
@@ -76,14 +79,16 @@ fi
 
 echo "==> User services"
 systemctl --user daemon-reload
-for u in z13-ipad-mode z13-osk-keys; do systemctl --user enable "$u.service" 2>/dev/null || true; done
+for u in z13-ipad-mode z13-osk-keys z13-kbd-sync; do systemctl --user enable "$u.service" 2>/dev/null || true; done
 command -v plasma-keyboard >/dev/null && "$HOME/.local/bin/z13-osk-layout" || echo "    run ~/.local/bin/z13-osk-layout once plasma-keyboard is installed"
 
 cat <<'MSG'
 
 Done. Log in to Plasma. Then:
-  * Panels look wrong or edge swipes open the wrong widget: applet numbers changed. Re-run
-    ~/z13-ipad-edges.sh (from the USB) and check ~/.local/share/kwin/scripts/z13-touch-edges.
+  * Panels look wrong or the left swipe opens the wrong widget: applet numbers changed. Re-run
+    ~/z13-ipad-edges.sh (from the USB), then copy z13-touch-edges back over what it wrote:
+    cp -r /usr/share/z13-bazzite/home/.local/share/kwin/scripts/z13-touch-edges ~/.local/share/kwin/scripts/
+    and set the notifications number in its contents/code/main.js.
   * Monitors: System Settings > Display (kwinoutputconfig.json was not restored).
   * Mic level: wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 0.40
   * Keyring: bash /usr/share/z13-bazzite/z13-keyring-seal.sh

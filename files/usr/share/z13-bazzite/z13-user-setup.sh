@@ -46,6 +46,10 @@ z13ctl-plus tablet settings set --touchpad-enabled=true --disable-touchscreen-in
   --keep-display-scale=false --scroll-sensitivity=5 --scroll-speed=1
 systemctl --user enable --now z13-tablet-switch.service z13-touch-scroll.service
 
+echo "==> Power profiles"
+asusctl profile set -a Balanced
+asusctl profile set -b Quiet
+
 echo "==> Plasma settings"
 osk=/usr/share/applications/org.kde.plasma.keyboard.desktop   # not kcm_plasmakeyboard.desktop
 if [[ -e $osk ]]; then

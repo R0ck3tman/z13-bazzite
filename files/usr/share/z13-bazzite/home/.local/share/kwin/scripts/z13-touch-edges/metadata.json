@@ -1,0 +1,11 @@
+{
+    "KPlugin": {
+        "Id": "z13-touch-edges",
+        "Name": "Z13 touch edges",
+        "Description": "iPad-style touchscreen edge swipes: top = top panels, bottom = dock, left = notifications, right = app switcher",
+        "License": "MIT",
+        "Version": "1.0"
+    },
+    "X-Plasma-API": "javascript",
+    "KPackageStructure": "KWin/Script"
+}

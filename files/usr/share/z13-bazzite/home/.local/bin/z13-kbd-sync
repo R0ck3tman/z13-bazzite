@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+# Mirror keyboard lighting from the Z13's internal ASUS controller (0b05:18c6) to the
+# detachable keyboard cover (0b05:1a30). ROG Control / asusctl only change the first aura
+# device asusd lists, which is the internal one with no visible keys.
+# The cover's D-Bus path changes on every re-attach (/xyz/ljones/aura/1a30_<bus>_<dev>).
+# Also applies the same lighting to the back light bar through z13ctl-plus. That saves it there too,
+# and the z13ctl-plus daemon restores its saved lighting whenever the cover is re-attached.
+import subprocess
+
+from gi.repository import Gio, GLib
+
+BUS, IFACE = "xyz.ljones.Asusd", "xyz.ljones.Aura"
+PROPS = ("LedModeData", "Brightness", "LedMode")
+# asusd value -> z13ctl-plus name. ROG Control Center offers Static, Breathe and Pulse on the Z13.
+MODES = {0: "static", 1: "breathe", 10: "strobe"}
+SPEEDS = {"Low": "slow", "Med": "normal", "High": "fast"}
+BRIGHTNESS = ("off", "low", "medium", "high")
+SETTLE_MS = 400  # ROG Control Center sends mode and brightness as separate changes
+bus = Gio.bus_get_sync(Gio.BusType.SYSTEM)
+pending = None
+
+def aura_paths(prefix):
+    xml = bus.call_sync(BUS, "/xyz/ljones/aura", "org.freedesktop.DBus.Introspectable",
+                        "Introspect", None, GLib.VariantType("(s)"),
+                        Gio.DBusCallFlags.NONE, 5000, None).unpack()[0]
+    node = Gio.DBusNodeInfo.new_for_xml(xml)
+    return ["/xyz/ljones/aura/" + n.path for n in node.nodes if n.path.startswith(prefix)]
+
+def copy(prop, value):
+    for path in aura_paths("1a30"):
+        try:
+            bus.call_sync(BUS, path, "org.freedesktop.DBus.Properties", "Set",
+                          GLib.Variant("(ssv)", (IFACE, prop, value)), None,
+                          Gio.DBusCallFlags.NONE, 5000, None)
+        except GLib.Error as e:
+            print(f"z13-kbd-sync: {path} {prop}: {e.message}", flush=True)
+
+def get(path, prop):
+    return bus.call_sync(BUS, path, "org.freedesktop.DBus.Properties", "Get",
+                         GLib.Variant("(ss)", (IFACE, prop)), GLib.VariantType("(v)"),
+                         Gio.DBusCallFlags.NONE, 5000, None).unpack()[0]
+
+def sync_z13ctl():
+    """Apply the internal controller's current lighting to both lights through z13ctl-plus."""
+    global pending
+    pending = None
+    try:
+        path = aura_paths("18c6")[0]
+        mode, _zone, colour, colour2, speed, _direction = get(path, "LedModeData")
+        brightness = get(path, "Brightness")
+        if mode not in MODES:
+            print(f"z13-kbd-sync: mode {mode} has no z13ctl-plus match, light bar not changed", flush=True)
+            return GLib.SOURCE_REMOVE
+        for device in ("keyboard", "lightbar"):
+            subprocess.run(["z13ctl-plus", "--device", device, "apply", "--mode", MODES[mode],
+                            "--color", "%02X%02X%02X" % tuple(colour),
+                            "--color2", "%02X%02X%02X" % tuple(colour2),
+                            "--speed", SPEEDS.get(speed, "normal"), "--brightness", BRIGHTNESS[brightness]],
+                           check=True, capture_output=True, text=True, timeout=10)
+    except subprocess.CalledProcessError as e:
+        print(f"z13-kbd-sync: z13ctl-plus: {e.stderr.strip()}", flush=True)
+    except (GLib.Error, IndexError, OSError, subprocess.TimeoutExpired) as e:
+        print(f"z13-kbd-sync: {e}", flush=True)
+    return GLib.SOURCE_REMOVE
+
+def on_changed(_conn, _sender, path, _iface, _signal, params):
+    global pending
+    if not path.startswith("/xyz/ljones/aura/18c6"):
+        return
+    iface, changed, _ = params.unpack()
+    if iface != IFACE:
+        return
+    relevant = [prop for prop in PROPS if prop in changed]
+    for prop in relevant:
+        copy(prop, params.get_child_value(1).lookup_value(prop, None))
+    if relevant:
+        if pending:
+            GLib.source_remove(pending)
+        pending = GLib.timeout_add(SETTLE_MS, sync_z13ctl)
+
+bus.signal_subscribe(BUS, "org.freedesktop.DBus.Properties", "PropertiesChanged", None,
+                     None, Gio.DBusSignalFlags.NONE, on_changed)
+sync_z13ctl()  # asusd is the source of truth, including after a reboot
+GLib.MainLoop().run()
