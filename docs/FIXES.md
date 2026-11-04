@@ -98,6 +98,7 @@ stephensedge/z13-bazzite; "CachyOS" means it was found on the previous CachyOS i
 | Touchscreen uaccess + `/dev/input/z13-touchscreen` | `udev/rules.d/70-z13-touchscreen.rules` | z13-tablet-kit reads the ELAN9008 directly |
 | `uinput` at boot | `modules-load.d/z13-uinput.conf` | Not autoloaded, so `/dev/uinput` had no uaccess ACL |
 | plasma-keyboard + python3-evdev | `build.sh` | Custom OSK; KWin drops modifiers from the input method, so Ctrl/Alt/Super go through `z13-osk-keys` (uinput) |
+| Two-finger scroll follows the fingers, in finer steps | `z13-touch-scroll-pointer.patch`, `z13-user-setup` | Wheel events go to the window under the pointer, not under the fingers. Claude Code scrolls this way (it still selects text); plain Ghostty scrolls with one finger |
 | `qdbus6` link to `qdbus-qt6` | `build.sh` | Fedora's name differs. Without it, z13-tablet-kit's `dock` logs `touchscreen unavailable` and never sets the posture or OSK mode, and `z13-ipad-mode`'s dock step fails |
 
 ## Login and lock screen

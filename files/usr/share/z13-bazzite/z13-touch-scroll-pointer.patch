@@ -1,0 +1,77 @@
+diff --git a/z13-touch-scroll b/z13-touch-scroll
+index 0df44ff..2ae7cc5 100755
+--- a/z13-touch-scroll
++++ b/z13-touch-scroll
+@@ -183,8 +183,13 @@ def emit_scrolls(state, ui):
+     if state["ref_y"] is None:
+         state["ref_y"] = avg
+         state["last_trigger"] = 0
++        state["pointer_moved"] = False
+     delta = avg - state["ref_y"]
+     step = state["step"]
++    # Wheel events go to the window under the pointer, so bring it to the fingers first.
++    if abs(delta - state["last_trigger"]) > step and not state["pointer_moved"]:
++        state["pointer_moved"] = True
++        move_pointer_to_touch(state, ui)
+     while delta - state["last_trigger"] > step:
+         ui.write(evdev.ecodes.EV_REL, evdev.ecodes.REL_WHEEL,
+                  -state["notches"])
+@@ -237,13 +242,11 @@ def to_logical(touch_x, touch_y, rotation, scale):
+     return nx * w, ny * h
+ 
+ 
+-def emit_context_menu(state, ui):
+-    """Move the pointer to the touch centroid and right-click.
++def move_pointer_to_touch(state, ui):
++    """Move the pointer to the touch centroid. Return (x, y), or None if unknown.
+ 
+-    Wayland provides no programmatic context-menu trigger, so we relocate a
+-    virtual pointer to the touch position and send a real BTN_RIGHT. REL needs
+-    the current pointer position, which is not exposed; clamping to the
+-    top-left with a large negative REL first makes the target deterministic.
++    REL needs the current pointer position, which is not exposed; clamping to
++    the top-left with a large negative REL first makes the target deterministic.
+     """
+     # shortcut: the clamp hits the top-left of the whole layout, so with touch
+     # enabled in desktop and an output left of/above eDP the click lands off
+@@ -251,15 +254,14 @@ def emit_context_menu(state, ui):
+     xs = [p[0] for p in state["positions"].values() if p[0] is not None]
+     ys = [p[1] for p in state["positions"].values() if p[1] is not None]
+     if not xs or not ys:
+-        return
++        return None
+     display = internal_display()
+     if display is None:
+-        # A right-click at a guessed position is worse than none.
+-        print("hold: skipped, internal display state unavailable",
++        print("touch: internal display state unavailable, pointer not moved",
+               file=sys.stderr, flush=True)
+-        return
++        return None
+     px, py = to_logical(sum(xs) / len(xs), sum(ys) / len(ys), *display)
+-    # Clamp to top-left, then move to the target, then right-click.
++    # Clamp to top-left, then move to the target.
+     ui.write(evdev.ecodes.EV_REL, evdev.ecodes.REL_X, -100000)
+     ui.write(evdev.ecodes.EV_REL, evdev.ecodes.REL_Y, -100000)
+     ui.syn()
+@@ -268,6 +270,20 @@ def emit_context_menu(state, ui):
+     ui.write(evdev.ecodes.EV_REL, evdev.ecodes.REL_Y, round(py))
+     ui.syn()
+     time.sleep(0.05)
++    return px, py
++
++
++def emit_context_menu(state, ui):
++    """Move the pointer to the touch centroid and right-click.
++
++    Wayland provides no programmatic context-menu trigger, so we relocate a
++    virtual pointer to the touch position and send a real BTN_RIGHT.
++    """
++    target = move_pointer_to_touch(state, ui)
++    if target is None:
++        # A right-click at a guessed position is worse than none.
++        return
++    px, py = target
+     ui.write(evdev.ecodes.EV_KEY, evdev.ecodes.BTN_RIGHT, 1)
+     ui.syn()
+     time.sleep(0.05)

@@ -25,6 +25,9 @@ flatpak install -y --noninteractive flathub \
 echo "==> z13-tablet-kit $KIT_REF"
 fetch https://github.com/aic0d3r/z13-tablet-kit "$SRC/z13-tablet-kit" "$KIT_REF"
 for f in dock z13-tablet-switch z13-touch-scroll; do install -Dm755 "$SRC/z13-tablet-kit/bin/$f" "$HOME/.local/bin/$f"; done
+# Two-finger scroll: wheel events go to the window under the pointer, so move the pointer to the fingers.
+# Written for KIT_REF above; if the kit changes, git apply fails here rather than patching the wrong code.
+(cd "$HOME/.local/bin" && git apply /usr/share/z13-bazzite/z13-touch-scroll-pointer.patch)
 install -Dm644 "$SRC/z13-tablet-kit/systemd/z13-tablet-switch.service" "$UNITS/z13-tablet-switch.service"
 install -Dm644 "$SRC/z13-tablet-kit/systemd/z13-touch-scroll.service"  "$UNITS/z13-touch-scroll.service"
 
@@ -40,7 +43,7 @@ systemctl --user enable --now z13ctl-plus.socket z13ctl-plus.service
 sleep 1
 z13ctl-plus preset policy --disable
 z13ctl-plus tablet settings set --touchpad-enabled=true --disable-touchscreen-in-desktop=false --two-finger-hold-context-menu=true \
-  --keep-display-scale=false --scroll-sensitivity=3 --scroll-speed=2
+  --keep-display-scale=false --scroll-sensitivity=5 --scroll-speed=1
 systemctl --user enable --now z13-tablet-switch.service z13-touch-scroll.service
 
 echo "==> Plasma settings"
