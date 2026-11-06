@@ -15,4 +15,4 @@ COPY files/ /
 
 # Packages (asusctl, ghostty, ...), z13ctl-plus, speaker gain, Bluetooth, login PIN, services.
 COPY build.sh /tmp/build.sh
-RUN bash /tmp/build.sh && rm -f /tmp/build.sh && ostree container commit
+RUN bash /tmp/build.sh && rm -f /tmp/build.sh && bootc container lint
