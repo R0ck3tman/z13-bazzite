@@ -7,13 +7,12 @@ Z13CTL_TARBALL_SHA256=a5c62537546bdd927d93529b1bc1459f72ea576448135224e00ac1b941
 
 # --- Packages ------------------------------------------------------------------------------------
 # asusctl: fans, power profiles, charge limit, keyboard/cover RGB (Bazzite retired its ASUS images).
-# howdy: face unlock. Fedora 44 dropped dlib; this COPR builds dlib + howdy for F44.
 # ghostty: terminal. The rest are Fedora packages the restored helpers need.
-COPRS=(lukenukem/asus-linux ronnypfannschmidt/howdy-beta scottames/ghostty)
+# Not howdy (face unlock): see "Face unlock" in docs/FIXES.md.
+COPRS=(lukenukem/asus-linux scottames/ghostty)
 for c in "${COPRS[@]}"; do dnf5 -y copr enable "$c"; done
 dnf5 -y install \
     asusctl asusctl-rog-gui \
-    howdy howdy-data \
     ghostty \
     gnome-keyring \
     python3-evdev \
@@ -106,5 +105,11 @@ grep -q '60-z13.just' /usr/share/ublue-os/justfile || \
 just --justfile /usr/share/ublue-os/justfile --list | grep -q z13-kargs
 
 # --- Report -------------------------------------------------------------------------------------
-rpm -q asusctl howdy python3-dlib ghostty gnome-keyring python3-evdev plasma-keyboard kde-connect
+rpm -q asusctl ghostty gnome-keyring python3-evdev plasma-keyboard kde-connect
 rpm -q plasma-workspace kwin
+# The lock screen must not load a PAM module this image doesn't have.
+cat /etc/pam.d/kde-fingerprint
+if grep -rl pam_howdy /etc/pam.d /usr/lib/pam.d 2>/dev/null; then
+    echo "ERROR: a PAM file still uses pam_howdy, which isn't installed" >&2
+    exit 1
+fi

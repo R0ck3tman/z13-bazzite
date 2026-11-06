@@ -2,7 +2,7 @@
 
 A custom [Bazzite](https://bazzite.gg) (KDE) image for the **ASUS ROG Flow Z13 (2025, GZ302EA)**,
 set up for **Plasma + [Konveyor](https://github.com/DevL0rd/Konveyor)** scrolling tiling, an
-iPad-style tablet mode, face unlock on the lock screen and a PIN on the login screen.
+iPad-style tablet mode and a PIN on the login screen.
 GitHub Actions rebuilds it every Sunday on top of the latest `bazzite:stable`.
 
 Forked from [stephensedge/z13-bazzite](https://github.com/stephensedge/z13-bazzite) (Root & Raid,
@@ -20,8 +20,8 @@ On top of that, it carries over the fixes from a CachyOS setup on the same table
 | Audio | Speaker amps at 19.5 dB (stock linux-firmware profile) instead of 15.5 dB |
 | Input | Cover touchpad marked internal (disable-while-typing), touchscreen access for the tablet kit, `uinput` at boot |
 | Tablet | z13ctl-plus (binary + user units only), plasma-keyboard, python3-evdev for the custom OSK helper |
-| Login | howdy face unlock on the lock screen, login PIN (pam_exec) with faillock |
-| Apps | Ghostty, KDE Connect, gnome-keyring (TPM-sealed unlock after face/PIN login) |
+| Login | Login PIN (pam_exec) with faillock. Face unlock is out for now: howdy has no Fedora 45 build |
+| Apps | Ghostty, KDE Connect, gnome-keyring (TPM-sealed unlock after PIN login) |
 | Tools | `ujust z13-*` recipes for the per-machine steps |
 
 Full list with causes, files and how to verify each one: **[docs/FIXES.md](docs/FIXES.md)**.
@@ -46,9 +46,8 @@ boot menu.
 | `ujust z13-kargs [--brightness-fix]` | USB autosuspend off, RTC wake; optional `amdgpu.dcdebugmask=0x40000` |
 | `ujust z13-user-setup` | In Plasma: tablet kit, z13ctl-plus settings, Konveyor, Flatpaks |
 | `ujust z13-restore-home [snapshot]` | From a text console: restore Plasma/Konveyor configs from a backup |
-| `ujust z13-howdy-setup` | IR camera, 8 s timeout, enroll two face models |
 | `ujust z13-login-pin [--remove]` | Set/change/remove the login PIN |
-| `ujust z13-keyring-seal` | TPM-seal the login password for keyring unlock after face/PIN login |
+| `ujust z13-keyring-seal` | TPM-seal the login password for keyring unlock after PIN login |
 | `ujust z13-hibernate-setup [SIZE]` | Swapfile (64G by default) and resume kargs |
 | `ujust z13-hibernate-test` | pm_test each hibernate stage |
 | `ujust z13-usb-wakeup-fix on\|off` | Stop cover detach from waking the tablet |

@@ -15,17 +15,12 @@ z13-user-setup:
 z13-restore-home SNAPSHOT="/run/media/$USER/USBDRIVE/z13-setup/cachyos/snapshot":
     bash /usr/share/z13-bazzite/z13-restore-home.sh "{{ SNAPSHOT }}"
 
-# Face unlock on the lock screen: point howdy at the IR camera, enroll two face models
-[group('Z13')]
-z13-howdy-setup:
-    sudo /usr/libexec/z13/z13-howdy-setup "$USER"
-
 # Set or change the login-screen PIN (--remove for password only)
 [group('Z13')]
 z13-login-pin *ARGS:
     sudo /usr/libexec/z13/z13-login-pin {{ ARGS }}
 
-# Seal your login password in the TPM so face/PIN login also unlocks the keyring
+# Seal your login password in the TPM so PIN login also unlocks the keyring
 [group('Z13')]
 z13-keyring-seal:
     bash /usr/share/z13-bazzite/z13-keyring-seal.sh

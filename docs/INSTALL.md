@@ -44,8 +44,7 @@ Order matters: the image is built and checked **before** the CachyOS install is 
     Then Ctrl+Alt+F1 (or F2) and log back in to Plasma.
     If a widget fails with `uses incompatible Qt library`, it was built on the old system: see
     "Rebuilding Punchi Dock" below.
-13. `ujust z13-howdy-setup`, `ujust z13-login-pin`, `ujust z13-keyring-seal`. Lock the screen to test
-    face unlock; reboot to test the PIN.
+13. `ujust z13-login-pin`, `ujust z13-keyring-seal`. Reboot to test the PIN.
 14. Mic: `wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 0.40`. EasyEffects: set "Z13 Speakers" to autoload.
 15. Optional: `ujust z13-scx on` (scx_lavd, as on CachyOS).
 
@@ -89,7 +88,7 @@ package install only need to happen once; after that, `git pull` and rebuild.
 - [ ] Konveyor loads after login, and again after the next image update (it rebuilds at login)
 - [ ] Tablet mode: posture switch, iPad mode, panels hide and return, OSK with Ctrl/Alt/Super, all four edge swipes
 - [ ] Docked: both monitors at 1440p144, eDP centred below
-- [ ] Lock screen face unlock; login PIN; keyring unlocked after both
+- [ ] Lock screen password; login PIN; keyring unlocked after PIN login
 - [ ] Hibernate + resume with Wi-Fi back
 
 ## Known risks
@@ -102,7 +101,7 @@ package install only need to happen once; after that, `git pull` and rebuild.
 - **Hibernate on Bazzite** has open resume-failure reports on other hardware. On this tablet, the first
   real hibernate restored the desktop and then reset (`internal CPU shutdown event`); the next three
   worked, including one right after `z13-hibernate-test`. The cause wasn't found, so save your work first.
-- **SELinux** (enforcing on Bazzite, not used on CachyOS) could block the PIN helper or howdy. The
+- **SELinux** (enforcing on Bazzite, not used on CachyOS) could block the PIN helper. The
   password always still works; check `sudo ausearch -m avc -ts recent`.
 
 ## Rollback

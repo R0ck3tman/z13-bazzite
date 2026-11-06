@@ -137,11 +137,14 @@ back as `none` in scripting; that's a gap in its getter, and the mode does apply
 
 ## Login and lock screen
 
-### Face unlock on the lock screen (CachyOS)
-- **Where:** howdy from `ronnypfannschmidt/howdy-beta` (Fedora 44 dropped dlib; this COPR builds both),
-  `files/etc/pam.d/kde-fingerprint` (pam_howdy instead of pam_fprintd; there's no fingerprint reader).
-  `/etc/pam.d/kde` is left stock: two howdy runs fight over the IR camera.
-- **Setup:** `ujust z13-howdy-setup` (IR camera path, `timeout = 8`, two models).
+### Face unlock on the lock screen (out for now)
+- **Status:** removed for Fedora 45. The howdy package in `ronnypfannschmidt/howdy-beta` needs Python 3.14,
+  and Fedora 45 has 3.15, so the image wouldn't build. The lock screen uses the password until it's back.
+- **To bring it back:** when that COPR has a Python 3.15 build, revert the commit that removed it. That
+  restores the package, `files/etc/pam.d/kde-fingerprint` (pam_howdy instead of pam_fprintd; there's no
+  fingerprint reader) and `ujust z13-howdy-setup` (IR camera path, `timeout = 8`, two models).
+  `/etc/pam.d/kde` stays stock: two howdy runs fight over the IR camera.
+- **Check:** `build.sh` fails the build if any PAM file still names `pam_howdy`.
 
 ### Login PIN (CachyOS)
 - **Where:** `build.sh` patches `/etc/pam.d/plasmalogin`: `pam_faillock preauth`, then
