@@ -100,13 +100,21 @@ def set_title_bars(tablet):
 
     KWin keeps a window's last decoration state when a rule stops forcing it, so leaving tablet mode
     first forces KWin's default ("client-preference") onto every window, then retires the rule (KWin
-    drops a rule group that no longer does anything). Don't write [General] rules: in KWin 6.8 every
-    group is a rule, and a non-empty legacy list makes KWin delete the groups not on it.
+    drops a rule group that no longer does anything, and takes it off the list itself).
+    KWin 6.7 only loads the groups in [General] rules, and it and 6.8 delete groups missing from a
+    non-empty list, so add this rule to the list alongside any others (the streaming apps' rules).
     """
     def write(policy, rule):
-        for key, value in (("Description", "Tablet mode: no title bars (z13-ipad-mode)"), ("types", "1"),
-                           ("wmclassmatch", "0"), ("decorationpolicy", policy), ("decorationpolicyrule", rule)):
-            subprocess.run(["kwriteconfig6", "--file", "kwinrulesrc", "--group", RULE, "--key", key, value],
+        listed = subprocess.run(["kreadconfig6", "--file", "kwinrulesrc", "--group", "General", "--key", "rules"],
+                                capture_output=True, text=True, check=True).stdout.strip()
+        rules = [r for r in listed.split(",") if r]
+        if RULE not in rules:
+            rules.append(RULE)
+        for group, key, value in (("General", "count", str(len(rules))), ("General", "rules", ",".join(rules)),
+                                  (RULE, "Description", "Tablet mode: no title bars (z13-ipad-mode)"), (RULE, "types", "1"),
+                                  (RULE, "wmclassmatch", "0"), (RULE, "decorationpolicy", policy),
+                                  (RULE, "decorationpolicyrule", rule)):
+            subprocess.run(["kwriteconfig6", "--file", "kwinrulesrc", "--group", group, "--key", key, value],
                            check=True)
         subprocess.run(["gdbus", "call", "--session", "--dest", "org.kde.KWin", "--object-path", "/KWin",
                         "--method", "org.kde.KWin.reconfigure"], check=True, capture_output=True)

@@ -100,6 +100,12 @@ stephensedge/z13-bazzite; "CachyOS" means it was found on the previous CachyOS i
 - Don't add upstream's extra bits (`0x40600` = also PSR-SU and Panel Replay off) up front: the
   author's own sleep freeze came from his boot flags, and went away at defaults. Add them only for flicker.
 
+### Two docked 1440p monitors: stay at 144 Hz (nothing to install)
+- **Symptom:** with one monitor at 180 Hz, the second didn't come up in Display Settings.
+- **Likely cause:** the dock runs DisplayPort on 2 lanes, so the link is tight even at 144 Hz. Not proven:
+  lowering the rate didn't bring the second monitor back by itself, it still had to be enabled by hand.
+- **Fix:** set both to 144 Hz in Display Settings. The layout isn't kept in this repo.
+
 ## Audio
 
 ### Speaker gain 19.5 dB (CachyOS)
@@ -122,6 +128,8 @@ stephensedge/z13-bazzite; "CachyOS" means it was found on the previous CachyOS i
 | `qdbus6` link to `qdbus-qt6` | `build.sh` | Fedora's name differs. Without it, z13-tablet-kit's `dock` logs `touchscreen unavailable` and never sets the posture or OSK mode, and `z13-ipad-mode`'s dock step fails |
 | Tablet mode follows KWin 6.7 | `home/.local/bin/z13-ipad-mode` | KWin 6.7 announces tablet mode only with `tabletModeChanged`, so the script also listens for that signal |
 | iPad-style panels and swipes | `home/.local/bin/z13-ipad-mode`, `home/.local/share/kwin/scripts/z13-touch-edges` | In tablet mode the dock and top panels hide. Swipe up shows the dock and swipe down shows the top panels, over the apps, for 5 s. Left = notifications, right = app switcher. Panels return when the cover is attached |
+| KWin rules list stays complete | `home/.local/bin/z13-ipad-mode` | KWin 6.7 loads only the groups in `[General] rules`, and 6.7 and 6.8 delete groups missing from a non-empty list, so the title-bar rule is added to the list next to any others |
+| Swipes over streaming apps | `home/.local/share/kwin/scripts/z13-touch-edges` | Bazzite's streaming launcher opens fullscreen, and KWin blocks edge swipes over fullscreen windows. Fullscreen is cancelled for the launcher's windows in their first 15 s; the player's own button still works after that |
 
 `home/` is `files/usr/share/z13-bazzite/home/`. `z13-restore-home` copies it over the USB snapshot,
 because the snapshot holds older versions of these files. Plasma's `windowsgobelow` panel mode reads

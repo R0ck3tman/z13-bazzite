@@ -8,6 +8,24 @@ function widget(id) {
                  "invokeShortcut", "activate widget " + id);
     };
 }
+// Bazzite's streaming launcher opens every service fullscreen, and KWin blocks edge swipes over a fullscreen
+// window. Cancel fullscreen just after the window opens; after that the player's own button works as usual.
+var STREAMING_CLASS = "streaming-service-launcher";
+var OPENING_MS = 15000;
+function openWindowed(window) {
+    if (String(window.resourceClass) !== STREAMING_CLASS) {
+        return;
+    }
+    var opened = Date.now();
+    function cancel() {
+        if (window.fullScreen && Date.now() - opened < OPENING_MS) {
+            window.fullScreen = false;
+        }
+    }
+    window.fullScreenChanged.connect(cancel);
+    cancel();
+}
+workspace.windowAdded.connect(openWindowed);
 registerTouchScreenEdge(KWin.ElectricTop, function () {  // top panels
     callDBus("org.z13.IpadMode", "/org/z13/IpadMode", "org.z13.IpadMode", "ShowTopPanels");
 });
